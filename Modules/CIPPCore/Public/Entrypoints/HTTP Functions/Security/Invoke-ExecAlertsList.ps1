@@ -61,7 +61,7 @@ Function Invoke-ExecAlertsList {
             $Rows = Get-CIPPAzDataTableEntity @Table -filter $Filter | Where-Object -Property Timestamp -GT (Get-Date).AddMinutes(-10)
             if (!$Rows) {
                 $TenantList = Get-Tenants -IncludeErrors
-                $Queue = New-CippQueueEntry -Name 'Alerts List' -TotalTasks ($TenantList | Measure-Object).Count
+                $Queue = New-CippQueueEntry -Name 'Alerts List - All Tenants' -TotalTasks ($TenantList | Measure-Object).Count
                 $InputObject = [PSCustomObject]@{
                     OrchestratorName = 'AlertsList'
                     QueueFunction    = [PSCustomObject]@{
@@ -70,14 +70,14 @@ Function Invoke-ExecAlertsList {
                         TenantParams = @{
                             IncludeErrors = $true
                         }
-                        DurableName  = 'ExecAlertsAllTenants'
+                        DurableName  = 'ExecAlertsListAllTenants'
                     }
                     SkipLog          = $true
                 } | ConvertTo-Json -Depth 10
-                Start-NewOrchestration -FunctionName CIPPOrchestrator -InputObject $InputObject
-
+                $InstanceId = Start-NewOrchestration -FunctionName CIPPOrchestrator -InputObject $InputObject
                 [PSCustomObject]@{
-                    Waiting = $true
+                    Waiting    = $true
+                    InstanceId = $InstanceId
                 }
             } else {
                 $Alerts = $Rows
