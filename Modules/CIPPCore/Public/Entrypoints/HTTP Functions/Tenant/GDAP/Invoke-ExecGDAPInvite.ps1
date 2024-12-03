@@ -24,7 +24,7 @@ Function Invoke-ExecGDAPInvite {
     try {
         $Step = 'Creating GDAP relationship'
         $JSONBody = @{
-            'displayName'        = "$((New-Guid).GUID)"
+            'displayName'        = "CIPP_$((New-Guid).GUID)"
             'accessDetails'      = @{
                 'unifiedRoles' = @($RoleMappings | Select-Object roleDefinitionId)
             }
@@ -58,8 +58,7 @@ Function Invoke-ExecGDAPInvite {
                 $InviteUrl = "https://admin.microsoft.com/AdminPortal/Home#/partners/invitation/granularAdminRelationships/$($NewRelationship.id)"
                 try {
                     $Uri = ([System.Uri]$TriggerMetadata.Headers.Referer)
-                    $TableFilter = [System.Web.HttpUtility]::UrlEncode(('Complex: id eq {0}' -f $NewRelationship.id))
-                    $OnboardingUrl = $Uri.AbsoluteUri.Replace($Uri.PathAndQuery, "/tenant/administration/tenant-onboarding-wizard?tableFilter=$TableFilter")
+                    $OnboardingUrl = $Uri.AbsoluteUri.Replace($Uri.PathAndQuery, "/tenant/gdap-management/onboarding/start?id=$($NewRelationship.id)")
                 } catch {
                     $OnboardingUrl = $null
                 }
