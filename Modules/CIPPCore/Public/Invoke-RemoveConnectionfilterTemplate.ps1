@@ -1,11 +1,11 @@
 using namespace System.Net
 
-Function Invoke-RemoveSpamfilterTemplate {
+Function Invoke-RemoveConnectionfilterTemplate {
     <#
     .FUNCTIONALITY
         Entrypoint
     .ROLE
-        Exchange.Spamfilter.ReadWrite
+        Exchange.ConnectionFilter.ReadWrite
     #>
     [CmdletBinding()]
     param($Request, $TriggerMetadata)
@@ -17,14 +17,14 @@ Function Invoke-RemoveSpamfilterTemplate {
     $ID = $request.body.id
     try {
         $Table = Get-CippTable -tablename 'templates'
-        $Filter = "PartitionKey eq 'SpamfilterTemplate' and RowKey eq '$id'"
+        $Filter = "PartitionKey eq 'ConnectionfilterTemplate' and RowKey eq '$id'"
         $ClearRow = Get-CIPPAzDataTableEntity @Table -Filter $Filter -Property PartitionKey, RowKey
         Remove-AzDataTableEntity -Force @Table -Entity $clearRow
-        Write-LogMessage -user $User -API $APINAME -message "Removed Spamfilter Template with ID $ID." -Sev 'Info'
-        $body = [pscustomobject]@{'Results' = 'Successfully Spamfilter template' }
+        Write-LogMessage -user $User -API $APINAME -message "Removed Connection Filter Template with ID $ID." -Sev 'Info'
+        $body = [pscustomobject]@{'Results' = 'Successfully removed Connection Filter Template' }
     } catch {
         $ErrorMessage = Get-CippException -Exception $_
-        Write-LogMessage -user $User -API $APINAME -message "Failed to remove Spam filter    Rule template $ID. $($ErrorMessage.NormalizedError)" -Sev 'Error' -LogData $ErrorMessage
+        Write-LogMessage -user $User -API $APINAME -message "Failed to remove Connection Filter template $ID. $($ErrorMessage.NormalizedError)" -Sev 'Error' -LogData $ErrorMessage
         $body = [pscustomobject]@{'Results' = "Failed to remove template: $($ErrorMessage.NormalizedError)" }
     }
 
