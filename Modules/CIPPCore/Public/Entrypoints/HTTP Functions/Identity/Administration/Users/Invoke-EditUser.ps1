@@ -11,7 +11,7 @@ Function Invoke-EditUser {
     param($Request, $TriggerMetadata)
 
     $APIName = $Request.Params.CIPPEndpoint
-    $User = $Request.headers.'x-ms-client-principal'
+    $User = $Request.Headers
     Write-LogMessage -headers $Request.headers -API $ApiName -message 'Accessed this API' -Sev 'Debug'
 
     $UserObj = $Request.body
@@ -133,7 +133,7 @@ Function Invoke-EditUser {
     }
 
     if ($Request.body.CopyFrom.value) {
-        $CopyFrom = Set-CIPPCopyGroupMembers -ExecutingUser $User -CopyFromId $Request.body.CopyFrom.value -UserID $UserPrincipalName -TenantFilter $UserObj.tenantFilter
+        $CopyFrom = Set-CIPPCopyGroupMembers -Headers $User -CopyFromId $Request.body.CopyFrom.value -UserID $UserPrincipalName -TenantFilter $UserObj.tenantFilter
         $null = $results.AddRange(@($CopyFrom))
     }
 
