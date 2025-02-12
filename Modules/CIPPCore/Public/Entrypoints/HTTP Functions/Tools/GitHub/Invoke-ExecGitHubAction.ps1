@@ -62,13 +62,14 @@ function Invoke-ExecGitHubAction {
             }
             'CreateRepo' {
                 try {
+                    Write-Information "Creating repository '$($SplatParams.Name)'"
                     $Repo = New-GitHubRepo @SplatParams
-                    if ($Results.id) {
+                    if ($Repo.id) {
                         $Table = Get-CIPPTable -TableName CommunityRepos
                         $RepoEntity = @{
                             PartitionKey  = 'CommunityRepos'
                             RowKey        = [string]$Repo.id
-                            Name          = [string]$Repo.name
+                            Name          = [string]($Repo.name -replace ' ', '-')
                             Description   = [string]$Repo.description
                             URL           = [string]$Repo.html_url
                             FullName      = [string]$Repo.full_name
@@ -81,11 +82,12 @@ function Invoke-ExecGitHubAction {
                         Add-CIPPAzDataTableEntity @Table -Entity $RepoEntity -Force | Out-Null
 
                         $Results = @{
-                            resultText = "Repository '$($Results.name)' created"
+                            resultText = "Repository '$($Repo.name)' created"
                             state      = 'success'
                         }
                     }
                 } catch {
+                    Write-Information (Get-CippException -Exception $_ | ConvertTo-Json)
                     $Results = @{
                         resultText = 'You may not have permission to create repositories, check your PAT scopes and try again - {0}' -f $_.Exception.Message
                         state      = 'error'
