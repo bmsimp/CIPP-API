@@ -43,8 +43,15 @@ function Invoke-ExecGitHubAction {
                 $Results = @(Get-GitHubBranch @SplatParams)
             }
             'GetOrgs' {
-                $Orgs = Invoke-GitHubApiRequest -Path 'user/orgs'
-                $Results = @($Orgs)
+                try {
+                    $Orgs = Invoke-GitHubApiRequest -Path 'user/orgs'
+                    $Results = @($Orgs)
+                } catch {
+                    $Results = @{
+                        resultText = 'You may not have permission to view organizations, check your PAT scopes and try again - {0}' -f $_.Exception.Message
+                        state      = 'error'
+                    }
+                }
             }
             'GetFileTree' {
                 $Files = (Get-GitHubFileTree @SplatParams).tree | Where-Object { $_.path -match '.json$' } | Select-Object *, @{n = 'html_url'; e = { "https://github.com/$($SplatParams.FullName)/tree/$($SplatParams.Branch)/$($_.path)" } }
@@ -54,32 +61,42 @@ function Invoke-ExecGitHubAction {
                 $Results = Import-CommunityTemplate @SplatParams
             }
             'CreateRepo' {
-                $Repo = New-GitHubRepo @SplatParams
-                if ($Results.id) {
-                    $Table = Get-CIPPTable -TableName CommunityRepos
-                    $RepoEntity = @{
-                        PartitionKey  = 'CommunityRepos'
-                        RowKey        = [string]$Repo.id
-                        Name          = [string]$Repo.name
-                        Description   = [string]$Repo.description
-                        URL           = [string]$Repo.html_url
-                        FullName      = [string]$Repo.full_name
-                        Owner         = [string]$Repo.owner.login
-                        Visibility    = [string]$Repo.visibility
-                        WriteAccess   = [bool]$Repo.permissions.push
-                        DefaultBranch = [string]$Repo.default_branch
-                        Permissions   = [string]($Repo.permissions | ConvertTo-Json -Compress)
-                    }
-                    Add-CIPPAzDataTableEntity @Table -Entity $RepoEntity -Force | Out-Null
+                try {
+                    $Repo = New-GitHubRepo @SplatParams
+                    if ($Results.id) {
+                        $Table = Get-CIPPTable -TableName CommunityRepos
+                        $RepoEntity = @{
+                            PartitionKey  = 'CommunityRepos'
+                            RowKey        = [string]$Repo.id
+                            Name          = [string]$Repo.name
+                            Description   = [string]$Repo.description
+                            URL           = [string]$Repo.html_url
+                            FullName      = [string]$Repo.full_name
+                            Owner         = [string]$Repo.owner.login
+                            Visibility    = [string]$Repo.visibility
+                            WriteAccess   = [bool]$Repo.permissions.push
+                            DefaultBranch = [string]$Repo.default_branch
+                            Permissions   = [string]($Repo.permissions | ConvertTo-Json -Compress)
+                        }
+                        Add-CIPPAzDataTableEntity @Table -Entity $RepoEntity -Force | Out-Null
 
+                        $Results = @{
+                            resultText = "Repository '$($Results.name)' created"
+                            state      = 'success'
+                        }
+                    }
+                } catch {
                     $Results = @{
-                        resultText = "Repository '$($Results.name)' created"
-                        state      = 'success'
+                        resultText = 'You may not have permission to create repositories, check your PAT scopes and try again - {0}' -f $_.Exception.Message
+                        state      = 'error'
                     }
                 }
             }
             default {
-                $Results = "Error: Unknown action '$Action'"
+                $Results = @{
+                    resultText = "Unknown action '$Action'"
+                    state      = 'error'
+                }
             }
         }
     }
