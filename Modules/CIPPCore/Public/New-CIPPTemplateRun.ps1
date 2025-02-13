@@ -9,6 +9,7 @@ function New-CIPPTemplateRun {
         $data = $_.JSON | ConvertFrom-Json -ErrorAction SilentlyContinue -Depth 100
         $data | Add-Member -NotePropertyName 'GUID' -NotePropertyValue $_.RowKey -Force
         $data | Add-Member -NotePropertyName 'PartitionKey' -NotePropertyValue $_.PartitionKey -Force
+        $data | Add-Member -NotePropertyName 'SHA' -NotePropertyValue $_.SHA -Force
         $data
     } | Sort-Object -Property displayName
 
@@ -20,21 +21,31 @@ function New-CIPPTemplateRun {
     }
     if ($TemplateSettings.templateRepo) {
         Write-Host 'Grabbing data from required community repo'
-        $Files = (Get-GitHubFileTree -FullName $TemplateSettings.templateRepo.value -Branch $TemplateSettings.templateRepo.branch).tree | Where-Object { $_.path -match '.json$' } | Select-Object *, @{n = 'html_url'; e = { "https://github.com/$($SplatParams.FullName)/tree/$($SplatParams.Branch)/$($_.path)" } }, @{n = 'name'; e = { ($_.path -split '/')[ -1 ] -replace '\.json$', '' } }
+        $Files = (Get-GitHubFileTree -FullName $TemplateSettings.templateRepo.value -Branch $TemplateSettings.templateRepoBranch.value).tree | Where-Object { $_.path -match '.json$' -and $_.path -notmatch 'NativeImport' } | Select-Object *, @{n = 'html_url'; e = { "https://github.com/$($SplatParams.FullName)/tree/$($SplatParams.Branch)/$($_.path)" } }, @{n = 'name'; e = { ($_.path -split '/')[ -1 ] -replace '\.json$', '' } }
+        #if there is a migration table file, file the file. Store the file contents in $migrationtable
+        $MigrationTable = $Files | Where-Object { $_.name -eq 'MigrationTable' } | Select-Object -Last 1
+        if ($MigrationTable) {
+            $MigrationTable = (Get-GitHubFileContents -FullName $TemplateSettings.templateRepo.value -Branch $TemplateSettings.templateRepoBranch.value -Path $MigrationTable.path).content | ConvertFrom-Json
+        }
         foreach ($File in $Files) {
+            if ($File.name -eq 'MigrationTable' -or $file.name -eq 'ALLOWED COUNTRIES') { continue }
             $ExistingTemplate = $ExistingTemplates | Where-Object { $_.displayName -eq $File.name } | Select-Object -First 1
+            $Template = (Get-GitHubFileContents -FullName $TemplateSettings.templateRepo.value -Branch $TemplateSettings.templateRepoBranch.value -Path $File.path).content | ConvertFrom-Json
             if ($ExistingTemplate) {
                 $UpdateNeeded = $false
                 if ($ExistingTemplate.sha -ne $File.sha -or !$ExistingTemplate.sha) {
                     $UpdateNeeded = $true
                 }
                 if ($UpdateNeeded) {
-                    $Template = Get-GitHubFileContents -FullName $TemplateSettings.templateRepo.value -Branch $TemplateSettings.templateRepo.branch -Path $File.path | ConvertFrom-Json
-                    Import-CommunityTemplate -Template $Template -SHA $File.sha
+                    Write-Host "Template $($File.name) needs to be updated as the SHA is different"
+                    Import-CommunityTemplate -Template $Template -SHA $File.sha -MigrationTable $MigrationTable
                 }
+            } else {
+                Write-Host "Template $($File.name) needs to be created"
+                Import-CommunityTemplate -Template $Template -SHA $File.sha -MigrationTable $MigrationTable
+
             }
         }
-
     } else {
         foreach ($Task in $Tasks) {
             Write-Host "Working on task $Task"

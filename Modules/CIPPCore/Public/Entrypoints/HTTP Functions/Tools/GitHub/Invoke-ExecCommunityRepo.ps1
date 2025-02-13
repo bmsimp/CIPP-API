@@ -160,8 +160,30 @@ function Invoke-ExecCommunityRepo {
             $Path = $Request.Body.Path
             $FullName = $Request.Body.FullName
             $Branch = $Request.Body.Branch
-            $Template = Get-GitHubFileContents -FullName $FullName -Path $Path -Branch $Branch
-            Import-CommunityTemplate -Template $Template
+            try {
+                $Template = Get-GitHubFileContents -FullName $FullName -Path $Path -Branch $Branch
+
+                $Content = $Template.content | ConvertFrom-Json
+                if ($Content.'@odata.type' -like '*conditionalAccessPolicy*') {
+                    $Files = (Get-GitHubFileTree -FullName $FullName -Branch $Branch).tree | Where-Object { $_.path -match '.json$' -and $_.path -notmatch 'NativeImport' } | Select-Object *, @{n = 'html_url'; e = { "https://github.com/$($SplatParams.FullName)/tree/$($SplatParams.Branch)/$($_.path)" } }, @{n = 'name'; e = { ($_.path -split '/')[ -1 ] -replace '\.json$', '' } }
+
+                    $MigrationTable = $Files | Where-Object { $_.name -eq 'MigrationTable' } | Select-Object -Last 1
+                    if ($MigrationTable) {
+                        Write-Host 'Found a migration table, getting contents'
+                        $MigrationTable = (Get-GitHubFileContents -FullName $FullName -Branch $Branch -Path $MigrationTable.path).content | ConvertFrom-Json
+                    }
+                }
+                Import-CommunityTemplate -Template $Content -SHA $Template.sha -MigrationTable $MigrationTable
+                $Results = @{
+                    resultText = 'Template imported'
+                    state      = 'success'
+                }
+            } catch {
+                $Results = @{
+                    resultText = "Error importing template: $($_.Exception.Message)"
+                    state      = 'error'
+                }
+            }
         }
         default {
             $Results = @{
