@@ -13,25 +13,54 @@ function New-CIPPAuditLogSearchResultsCache {
         [string]$TenantFilter,
         [string]$SearchId
     )
+    try {
+        $FailedDownloadsTable = Get-CippTable -TableName 'FailedAuditLogDownloads'
+        $fourHoursAgo = (Get-Date).AddHours(-4).ToUniversalTime()
+        $failedEntity = Get-CIPPAzDataTableEntity @FailedDownloadsTable -Filter "PartitionKey eq '$TenantFilter' and SearchId eq '$SearchId' and Timestamp ge datetime'$($fourHoursAgo.ToString('yyyy-MM-ddTHH:mm:ssZ'))'"
+
+        if ($failedEntity) {
+            $message = "Skipping search ID: $SearchId for tenant: $TenantFilter - Previous attempt failed within the last 4 hours"
+            Write-LogMessage -API 'AuditLog' -tenant $TenantFilter -message $message -Sev 'Info'
+            Write-Information $message
+            exit 0
+        }
+    } catch {
+        Write-Information "Error checking for failed downloads: $($_.Exception.Message)"
+        # Continue with the process even if the rerun protection check fails
+    }
 
     try {
         Write-Information "Starting audit log cache process for tenant: $TenantFilter"
         $CacheWebhooksTable = Get-CippTable -TableName 'CacheWebhooks'
         $CacheWebhookStatsTable = Get-CippTable -TableName 'CacheWebhookStats'
-        # Start tracking download time
+        # Check if we haven't already downloaded this search by checking the cache table
+        $searchEntity = Get-CIPPAzDataTableEntity @CacheWebhooksTable -Filter "PartitionKey eq '$TenantFilter' and SearchId eq '$SearchId'"
+        if ($searchEntity) {
+            Write-Information "Search ID: $SearchId already cached for tenant: $TenantFilter"
+            exit 0
+        }
+
+        # Record this attempt in the FailedAuditLogDownloads table BEFORE starting the download
+        # This way, if the function is killed before completion, the record will remain
+        try {
+            $FailedDownloadsTable = Get-CippTable -TableName 'FailedAuditLogDownloads'
+            $attemptId = [guid]::NewGuid().ToString()
+            $failedEntity = @{
+                RowKey       = $attemptId
+                PartitionKey = $TenantFilter
+                SearchId     = $SearchId
+                ErrorMessage = 'Download attempt in progress'
+            }
+            Add-CIPPAzDataTableEntity @FailedDownloadsTable -Entity $failedEntity -Force
+            Write-Information "Recorded download attempt for search ID: $SearchId, tenant: $TenantFilter"
+        } catch {
+            Write-Information "Failed to record download attempt: $($_.Exception.Message)"
+        }
+
         $downloadStartTime = Get-Date
-        # Process each search and store results in cache
         try {
             Write-Information "Processing search ID: $($SearchId) for tenant: $TenantFilter"
-            # Get the search results
-            #check if we haven't already downloaded this search by checking the cache table, if there are items with the same search id and tenant, we skip this search
-            $searchEntity = Get-CIPPAzDataTableEntity @CacheWebhooksTable -Filter "PartitionKey eq '$TenantFilter' and SearchId eq '$SearchId'"
-            if ($searchEntity) {
-                Write-Information "Search ID: $SearchId already cached for tenant: $TenantFilter"
-                exit 0
-            }
             $searchResults = Get-CippAuditLogSearchResults -TenantFilter $TenantFilter -QueryId $SearchId
-            # Store the results in the cache table
             foreach ($searchResult in $searchResults) {
                 $cacheEntity = @{
                     RowKey       = $searchResult.id
@@ -41,28 +70,33 @@ function New-CIPPAuditLogSearchResultsCache {
                 }
                 Add-CIPPAzDataTableEntity @CacheWebhooksTable -Entity $cacheEntity -Force
             }
-            Write-Information "Successfully cached search ID: $($item.id) for tenant: $TenantFilter"
+            Write-Information "Successfully cached search ID: $($SearchId) for tenant: $TenantFilter"
+            try {
+                $FailedDownloadsTable = Get-CippTable -TableName 'FailedAuditLogDownloads'
+                $failedEntities = Get-CIPPAzDataTableEntity @FailedDownloadsTable -Filter "PartitionKey eq '$TenantFilter' and SearchId eq '$SearchId'"
+                if ($failedEntities) {
+                    Remove-CIPPAzDataTableEntity @FailedDownloadsTable -Entity $entity
+                    Write-Information "Removed failed download records for search ID: $SearchId, tenant: $TenantFilter"
+                }
+            } catch {
+                Write-Information "Failed to remove download attempt record: $($_.Exception.Message)"
+            }
         } catch {
             throw $_
         }
 
-        # Calculate download time
         $downloadEndTime = Get-Date
         $downloadSeconds = ($downloadEndTime - $downloadStartTime).TotalSeconds
 
-        # Store performance metrics
         $statsEntity = @{
             RowKey       = $TenantFilter
             PartitionKey = 'Stats'
             DownloadSecs = [string]$downloadSeconds
-            SearchCount  = [string]$logSearches.Count
+            SearchCount  = [string]($searchResults ? $searchResults.Count : 0)
         }
-
         Add-CIPPAzDataTableEntity @CacheWebhookStatsTable -Entity $statsEntity -Force
-
         Write-Information "Completed audit log cache process for tenant: $TenantFilter. Download time: $downloadSeconds seconds"
-
-        return $logSearches.Count
+        return ($searchResults ? $searchResults.Count : 0)
     } catch {
         Write-Information "Error in New-CIPPAuditLogSearchResultsCache for tenant: $TenantFilter. Error: $($_.Exception.Message)"
         throw $_
