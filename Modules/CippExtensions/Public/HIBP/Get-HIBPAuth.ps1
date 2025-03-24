@@ -9,6 +9,9 @@ function Get-HIBPAuth {
             $Secret = (Get-CIPPAzDataTableEntity @DevSecretsTable -Filter "PartitionKey eq 'HIBP' and RowKey eq 'HIBP'").APIKey
         } else {
             $null = Connect-AzAccount -Identity
+            $SubscriptionId = $ENV:WEBSITE_OWNER_NAME -split '\+' | Select-Object -First 1
+            $null = Set-AzContext -SubscriptionId $SubscriptionId
+
             $VaultName = ($ENV:WEBSITE_DEPLOYMENT_ID -split '-')[0]
             try {
                 $Secret = Get-AzKeyVaultSecret -VaultName $VaultName -Name 'HIBP' -AsPlainText -ErrorAction Stop
@@ -16,8 +19,11 @@ function Get-HIBPAuth {
                 $Secret = $null
             }
 
-            if ([string]::IsNullOrEmpty($Secret) -and $ENV:WEBSITE_OWNER_NAME -like '3e625d35-bf18-4e55*' -or $ENV:WEBSITE_OWNER_NAME -like '61e84181-ff2a-4ba3*') {
+            if ([string]::IsNullOrEmpty($Secret) -and $ENV:CIPP_HOSTED -eq 'true') {
                 $VaultName = 'hibp-kv'
+                if ($SubscriptionId -ne $ENV:CIPP_HOSTED_KV_SUB -and $ENV:CIPP_HOSTED_KV_SUB -match '^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$') {
+                    $null = Set-AzContext -SubscriptionId $ENV:CIPP_HOSTED_KV_SUB
+                }
                 $Secret = Get-AzKeyVaultSecret -VaultName $VaultName -Name 'HIBP' -AsPlainText
             }
         }
