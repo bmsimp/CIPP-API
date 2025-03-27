@@ -4,12 +4,11 @@ function Set-CIPPStandardsCompareField {
         $FieldValue,
         $TenantFilter
     )
+    Write-Host "Shoehorn: Set-CIPPStandardsCompareField - $FieldName - $FieldValue - $TenantFilter"
     $Table = Get-CippTable -tablename 'CippStandardsReports'
     $TenantName = Get-Tenants | Where-Object -Property defaultDomainName -EQ $Tenant
     #if the fieldname does not contain standards. prepend it.
-    if ($FieldName -notlike 'standards.*') {
-        $FieldName = "standards.$FieldName"
-    }
+    $FieldName = $FieldName.replace('standards.', 'standards_')
     if ($FieldValue -is [System.Boolean]) {
         $fieldValue = [bool]$FieldValue
     } elseif ($FieldValue -is [string]) {
