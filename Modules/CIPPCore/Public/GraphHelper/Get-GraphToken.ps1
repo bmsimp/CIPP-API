@@ -6,7 +6,16 @@ function Get-GraphToken($tenantid, $scope, $AsApp, $AppID, $AppSecret, $refreshT
     if (!$scope) { $scope = 'https://graph.microsoft.com/.default' }
 
     if (!$env:SetFromProfile) { $CIPPAuth = Get-CIPPAuthentication; Write-Host 'Could not get Refreshtoken from environment variable. Reloading token.' }
-    #If the $env:<$tenantid> is set, use that instead of the refreshtoken for all tenants.
+    $ConfigTable = Get-CippTable -tablename 'Config'
+    $Filter = "PartitionKey eq 'AppCache' and RowKey eq 'AppCache'"
+    $AppCache = Get-CIPPAzDataTableEntity @ConfigTable -Filter $Filter
+    #force auth update is appId is not the same as the one in the environment variable.
+    Write-Host "My appId pre-launch is $($env:ApplicationID) and the one in the cache is $($AppCache.ApplicationId)"
+    if ($AppCache.ApplicationId -and $env:ApplicationID -ne $AppCache.ApplicationId) {
+        Write-Host "Setting environment variable ApplicationID to $($AppCache.ApplicationId)"
+        $CIPPAuth = Get-CIPPAuthentication
+    }
+    Write-Host "My appId post-launch is $($env:ApplicationID) and the one in the cache is $($AppCache.ApplicationId)"
     $refreshToken = $env:RefreshToken
     if (!$tenantid) { $tenantid = $env:TenantID }
     #Get list of tenants that have 'directTenant' set to true
