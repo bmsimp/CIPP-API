@@ -1,11 +1,11 @@
 using namespace System.Net
 
-Function Invoke-EditCAPolicy {
+Function Invoke-EditIntunePolicy {
     <#
     .FUNCTIONALITY
         Entrypoint
     .ROLE
-        Tenant.ConditionalAccess.ReadWrite
+        Endpoint.MEM.Read
     #>
     [CmdletBinding()]
     param($Request, $TriggerMetadata)
@@ -14,35 +14,31 @@ Function Invoke-EditCAPolicy {
     $Headers = $Request.Headers
     Write-LogMessage -headers $Headers -API $APIName -message 'Accessed this API' -Sev 'Debug'
 
-    # Interact with the request
+    # Interact with query parameters or the body of the request.
     $TenantFilter = $Request.Query.tenantFilter ?? $Request.Body.tenantFilter
-    $ID = $Request.Query.GUID ?? $Request.Body.GUID
-    $State = $Request.Query.State ?? $Request.Body.State
+    $ID = $Request.Query.ID ?? $Request.Body.ID
     $DisplayName = $Request.Query.newDisplayName ?? $Request.Body.newDisplayName
+    $PolicyType = $Request.Query.policyType ?? $Request.Body.policyType
 
     try {
         $properties = @{}
 
-        # Conditionally add properties
-        if ($State) {
-            $properties["state"] = $State
-        }
-
+        # Only add displayName if it's provided
         if ($DisplayName) {
             $properties["displayName"] = $DisplayName
         }
 
-        $Request = New-GraphPOSTRequest -uri "https://graph.microsoft.com/beta//identity/conditionalAccess/policies/$($ID)" -tenantid $TenantFilter -type PATCH -body ($properties | ConvertTo-Json) -asapp $true
+        # Update the policy
+        $Request = New-GraphPOSTRequest -uri "https://graph.microsoft.com/beta/deviceManagement/$PolicyType/$ID" -tenantid $TenantFilter -type PATCH -body ($properties | ConvertTo-Json) -asapp $true
 
-        $Result = "Successfully updated CA policy $($ID)"
-        if ($State) { $Result += " state to $($State)" }
+        $Result = "Successfully updated Intune policy $($ID)"
         if ($DisplayName) { $Result += " name to '$($DisplayName)'" }
 
         Write-LogMessage -headers $Headers -API $APIName -tenant $($TenantFilter) -message $Result -Sev 'Info'
         $StatusCode = [HttpStatusCode]::OK
     } catch {
         $ErrorMessage = Get-CippException -Exception $_
-        $Result = "Failed to update CA policy $($ID): $($ErrorMessage.NormalizedError)"
+        $Result = "Failed to update Intune policy $($ID): $($ErrorMessage.NormalizedError)"
         Write-LogMessage -headers $Headers -API $APIName -tenant $($TenantFilter) -message $Result -Sev 'Error' -LogData $ErrorMessage
         $StatusCode = [HttpStatusCode]::InternalServerError
     }
@@ -52,5 +48,4 @@ Function Invoke-EditCAPolicy {
             StatusCode = $StatusCode
             Body       = @{ 'Results' = $Result }
         })
-
 }
