@@ -21,8 +21,11 @@ Function Invoke-ListSharepointQuota {
         $UsedStoragePercentage = 'Not Supported'
     } else {
         try {
-            $SharePointInfo = Get-SharePointAdminLink -Public $false
-            $SharePointQuota = (New-GraphGetRequest -scope "$($SharePointInfo.AdminUrl)/.default" -tenantid $TenantFilter -uri "$($SharePointInfo.AdminUrl)/_api/StorageQuotas()?api-version=1.3.2").value | Sort-Object -Property GeoUsedStorageMB -Descending | Select-Object -First 1
+            $SharePointInfo = Get-SharePointAdminLink -Public $false -tenantFilter $TenantFilter
+            $extraHeaders = @{
+                'Accept' = 'application/json'
+            }
+            $SharePointQuota = (New-GraphGetRequest -extraHeaders $extraHeaders -scope "$($SharePointInfo.AdminUrl)/.default" -tenantid $TenantFilter -uri "$($SharePointInfo.AdminUrl)/_api/StorageQuotas()?api-version=1.3.2") | Sort-Object -Property GeoUsedStorageMB -Descending | Select-Object -First 1
 
             if ($SharePointQuota) {
                 $UsedStoragePercentage = [int](($SharePointQuota.GeoUsedStorageMB / $SharePointQuota.TenantStorageMB) * 100)

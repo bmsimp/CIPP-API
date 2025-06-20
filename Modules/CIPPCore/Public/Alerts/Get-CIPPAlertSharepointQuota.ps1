@@ -11,8 +11,11 @@ function Get-CIPPAlertSharepointQuota {
         $TenantFilter
     )
     Try {
-        $SharePointInfo = Get-SharePointAdminLink -Public $false
-        $sharepointQuota = (New-GraphGetRequest -scope "$($SharePointInfo.AdminUrl)/.default" -tenantid $TenantFilter -uri "$($SharePointInfo.AdminUrl)/_api/StorageQuotas()?api-version=1.3.2").value
+        $SharePointInfo = Get-SharePointAdminLink -Public $false -tenantFilter $TenantFilter
+        $extraHeaders = @{
+            'Accept' = 'application/json'
+        }
+        $sharepointQuota = (New-GraphGetRequest -extraHeaders $extraHeaders -scope "$($SharePointInfo.AdminUrl)/.default" -tenantid $TenantFilter -uri "$($SharePointInfo.AdminUrl)/_api/StorageQuotas()?api-version=1.3.2")
     } catch {
         return
     }
