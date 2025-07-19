@@ -66,10 +66,13 @@ function Push-ExecScheduledCommand {
         }
 
         Write-Host 'ran the command. Processing results'
+        Write-Host "Results: $($results | ConvertTo-Json -Depth 10)"
         if ($item.command -like 'Get-CIPPAlert*') {
+            Write-Host 'This is an alert task. Processing results as alerts.'
             $results = @($results)
             $TaskType = 'Alert'
         } else {
+            Write-Host 'This is a scheduled task. Processing results as scheduled task.'
             $TaskType = 'Scheduled Task'
             if ($results -is [String]) {
                 $results = @{ Results = $results }
@@ -81,7 +84,8 @@ function Push-ExecScheduledCommand {
                     @{ Results = $Message }
                 }
             }
-
+            Write-Host "Results after processing: $($results | ConvertTo-Json -Depth 10)"
+            write0host 'Moving onto storing results'
             if ($results -is [string]) {
                 $StoredResults = $results
             } else {
@@ -89,7 +93,7 @@ function Push-ExecScheduledCommand {
                 $StoredResults = $results | ConvertTo-Json -Compress -Depth 20 | Out-String
             }
         }
-
+        Write-Host "Results: $($results | ConvertTo-Json -Depth 10)"
         if ($StoredResults.Length -gt 64000 -or $task.Tenant -eq 'AllTenants' -or $task.TenantGroup) {
             $TaskResultsTable = Get-CippTable -tablename 'ScheduledTaskResults'
             $TaskResults = @{
@@ -101,13 +105,34 @@ function Push-ExecScheduledCommand {
             $StoredResults = @{ Results = 'Completed, details are available in the More Info pane' } | ConvertTo-Json -Compress
         }
     } catch {
+        Write-Host "Failed to run task: $($_.Exception.Message)"
         $errorMessage = $_.Exception.Message
+        #if recurrence is just a number, add it in days.
+        if ($task.Recurrence -match '^\d+$') {
+            $task.Recurrence = $task.Recurrence + 'd'
+        }
+        $secondsToAdd = switch -Regex ($task.Recurrence) {
+            '(\d+)m$' { [int64]$matches[1] * 60 }
+            '(\d+)h$' { [int64]$matches[1] * 3600 }
+            '(\d+)d$' { [int64]$matches[1] * 86400 }
+            default { 0 }
+        }
+
+        if ($secondsToAdd -gt 0) {
+            $unixtimeNow = [int64](([datetime]::UtcNow) - (Get-Date '1/1/1970')).TotalSeconds
+            if ([int64]$task.ScheduledTime -lt ($unixtimeNow - $secondsToAdd)) {
+                $task.ScheduledTime = $unixtimeNow
+            }
+        }
+
+        $nextRunUnixTime = [int64]$task.ScheduledTime + [int64]$secondsToAdd
         if ($task.Recurrence -ne 0) { $State = 'Failed - Planned' } else { $State = 'Failed' }
         Update-AzDataTableEntity -Force @Table -Entity @{
-            PartitionKey = $task.PartitionKey
-            RowKey       = $task.RowKey
-            Results      = "$errorMessage"
-            TaskState    = $State
+            PartitionKey  = $task.PartitionKey
+            RowKey        = $task.RowKey
+            Results       = "$errorMessage"
+            ScheduledTime = "$nextRunUnixTime"
+            TaskState     = $State
         }
         Write-LogMessage -API 'Scheduler_UserTasks' -tenant $Tenant -tenantid $TenantInfo.customerId -message "Failed to execute task $($task.Name): $errorMessage" -sev Error -LogData (Get-CippExceptionData -Exception $_.Exception)
     }
