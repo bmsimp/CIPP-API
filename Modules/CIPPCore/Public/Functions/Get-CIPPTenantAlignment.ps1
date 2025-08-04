@@ -52,7 +52,7 @@ function Get-CIPPTenantAlignment {
 
         # Get standards comparison data
         $StandardsTable = Get-CIPPTable -TableName 'CippStandardsReports'
-        $AllStandards = Get-CIPPAzDataTableEntity @StandardsTable -Filter "PartitionKey ne 'StandardReport'"
+        $AllStandards = Get-CIPPAzDataTableEntity @StandardsTable -Filter "PartitionKey ne 'StandardReport' and PartitionKey ne ''"
 
         # Filter by tenant if specified
         $Standards = if ($TenantFilter) {
@@ -72,7 +72,15 @@ function Get-CIPPTenantAlignment {
             if ($FieldValue -is [System.Boolean]) {
                 $FieldValue = [bool]$FieldValue
             } elseif ($FieldValue -like '*{*') {
-                $FieldValue = ConvertFrom-Json -Depth 100 -InputObject $FieldValue -ErrorAction SilentlyContinue
+                try {
+                    $FieldValue = ConvertFrom-Json -Depth 100 -InputObject $FieldValue -ErrorAction SilentlyContinue
+                } catch {
+                    Write-Warning "$($FieldName) standard report could not be loaded: $($_.Exception.Message)"
+                    $FieldValue = [PSCustomObject]@{
+                        Error         = "Invalid JSON format: $($_.Exception.Message)"
+                        OriginalValue = $FieldValue
+                    }
+                }
             } else {
                 $FieldValue = [string]$FieldValue
             }
