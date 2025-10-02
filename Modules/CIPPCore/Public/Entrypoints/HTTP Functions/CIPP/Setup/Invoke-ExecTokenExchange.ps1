@@ -34,7 +34,7 @@ Function Invoke-ExecTokenExchange {
         # Make sure we get the latest authentication
         $auth = Get-CIPPAuthentication
 
-        if ($env:AzureWebJobsStorage -eq 'UseDevelopmentStorage=true') {
+        if ($env:AzureWebJobsStorage -eq 'UseDevelopmentStorage=true' -or $env:NonLocalHostAzurite -eq 'true') {
             $DevSecretsTable = Get-CIPPTable -tablename 'DevSecrets'
             $Secret = Get-CIPPAzDataTableEntity @DevSecretsTable -Filter "PartitionKey eq 'Secret' and RowKey eq 'Secret'"
             $ClientSecret = $Secret.applicationsecret
@@ -75,13 +75,13 @@ Function Invoke-ExecTokenExchange {
         }
     }
     if ($Results.error) {
-        Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
+        return ([HttpResponseContext]@{
                 StatusCode = [HttpStatusCode]::BadRequest
                 Body       = $Results
                 Headers    = @{'Content-Type' = 'application/json' }
             })
     } else {
-        Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
+        return ([HttpResponseContext]@{
                 StatusCode = [HttpStatusCode]::OK
                 Body       = $Results
                 Headers    = @{'Content-Type' = 'application/json' }
