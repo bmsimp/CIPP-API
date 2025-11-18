@@ -302,6 +302,14 @@ function Get-CIPPStandards {
                                 $CurrentStandard.action = @($CurrentStandard.action) + $reportAction
                             }
 
+                            if ($CurrentStandard.autoRemediate -eq $true) {
+                                Write-Host 'STRDS: autoRemediate set to true, adding Remediate action'
+                                $CurrentStandard.action = @($CurrentStandard.action) + [pscustomobject]@{
+                                    label = 'Remediate'
+                                    value = 'Remediate'
+                                }
+                            }
+
                             $Actions = $CurrentStandard.action.value
                             if ($Actions -contains 'Remediate' -or $Actions -contains 'warn' -or $Actions -contains 'Report') {
                                 if (-not $ComputedStandards.Contains($StandardName)) {
