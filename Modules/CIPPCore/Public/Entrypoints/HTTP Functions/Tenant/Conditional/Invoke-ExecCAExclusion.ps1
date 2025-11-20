@@ -28,10 +28,33 @@ function Invoke-ExecCAExclusion {
             }
         }
 
-        $Policy = New-GraphGetRequest -uri "https://graph.microsoft.com/beta/identity/conditionalAccess/policies/$($PolicyId)?`$select=id,displayName" -tenantid $TenantFilter -asApp $true
+        $Policy = New-GraphGetRequest -uri "https://graph.microsoft.com/beta/identity/conditionalAccess/policies/$($PolicyId)?`$select=id,displayName,conditions" -tenantid $TenantFilter -asApp $true
 
         if (-not $Policy) {
             throw "Policy with ID $PolicyId not found in tenant $TenantFilter."
+        }
+
+        $SecurityGroups = New-GraphGetRequest -uri "https://graph.microsoft.com/beta/groups?`$select=id,displayName&`$filter=securityEnabled eq true and mailEnabled eq false&`$count=true" -tenantid $TenantFilter
+        $VacationGroup = $SecurityGroups | Where-Object { $_.displayName -contains "Vacation Exclusion - $($Policy.displayName)" }
+
+        if (!$VacationGroup) {
+            Write-Information "Creating vacation group: Vacation Exclusion - $($Policy.displayName)"
+            $Guid = [guid]::NewGuid().ToString()
+            $GroupObject = @{
+                groupType       = 'generic'
+                displayName     = "Vacation Exclusion - $($Policy.displayName)"
+                username        = "vacation$Guid"
+                securityEnabled = $true
+            }
+            $NewGroup = New-CIPPGroup -GroupObject $GroupObject -TenantFilter $TenantFilter -APIName 'Invoke-ExecCAExclusion'
+            $GroupId = $NewGroup.GroupId
+        } else {
+            Write-Information "Using existing vacation group: $($VacationGroup.displayName)"
+            $GroupId = $VacationGroup.id
+        }
+
+        if ($Policy.conditions.users.excludeGroups -notcontains $GroupId) {
+            Set-CIPPCAExclusion -TenantFilter $TenantFilter -ExclusionType 'Add' -PolicyId $PolicyId -Groups @{ value = @($GroupId); addedFields = @{ displayName = @("CIPP-Vacation-$($Policy.displayName)") } } -Headers $Headers
         }
 
         $PolicyName = $Policy.displayName
@@ -40,22 +63,17 @@ function Invoke-ExecCAExclusion {
             $EndDate = $Request.Body.EndDate
 
             $Parameters = [PSCustomObject]@{
-                ExclusionType = 'Add'
-                PolicyId      = $PolicyId
-            }
-
-            if ($Users) {
-                $Parameters | Add-Member -NotePropertyName Users -NotePropertyValue $Users
-            } else {
-                $Parameters | Add-Member -NotePropertyName UserID -NotePropertyValue $UserID
+                GroupType = 'Security'
+                GroupId   = $GroupId
+                Member    = $Users.addedFields.userPrincipalName ?? $Users.value ?? $Users ?? $UserID
             }
 
             $TaskBody = [pscustomobject]@{
                 TenantFilter  = $TenantFilter
                 Name          = "Add CA Exclusion Vacation Mode: $PolicyName"
                 Command       = @{
-                    value = 'Set-CIPPCAExclusion'
-                    label = 'Set-CIPPCAExclusion'
+                    value = 'Add-CIPPGroupMember'
+                    label = 'Add-CIPPGroupMember'
                 }
                 Parameters    = [pscustomobject]$Parameters
                 ScheduledTime = $StartDate
@@ -65,7 +83,10 @@ function Invoke-ExecCAExclusion {
 
             Add-CIPPScheduledTask -Task $TaskBody -hidden $false
             #Removal of the exclusion
-            $TaskBody.Parameters.ExclusionType = 'Remove'
+            $TaskBody.Command = @{
+                label = 'Remove-CIPPGroupMember'
+                value = 'Remove-CIPPGroupMember'
+            }
             $TaskBody.Name = "Remove CA Exclusion Vacation Mode: $PolicyName"
             $TaskBody.ScheduledTime = $EndDate
             Add-CIPPScheduledTask -Task $TaskBody -hidden $false
