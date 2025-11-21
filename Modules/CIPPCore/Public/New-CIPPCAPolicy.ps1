@@ -8,6 +8,7 @@ function New-CIPPCAPolicy {
         $Overwrite,
         $ReplacePattern = 'none',
         $DisableSD = $false,
+        $CreateGroups = $false,
         $APIName = 'Create CA Policy',
         $Headers
     )
@@ -39,7 +40,7 @@ function New-CIPPCAPolicy {
     }
     # Helper function to replace group display names with GUIDs
     function Replace-GroupNameWithId {
-        param($groupNames)
+        param($TenantFilter, $groupNames, $CreateGroups, $GroupTemplates)
 
         $GroupIds = [System.Collections.Generic.List[string]]::new()
         $groupNames | ForEach-Object {
@@ -53,6 +54,28 @@ function New-CIPPCAPolicy {
                         Write-Warning "Replaced group name $_ with ID $gid"
                         $null = Write-LogMessage -Headers $User -API 'Create CA Policy' -message "Replaced group name $_ with ID $gid" -Sev 'Debug'
                         $GroupIds.Add($gid) # add the ID to the list
+                    }
+                } elseif ($CreateGroups) {
+                    Write-Warning "Creating group $_ as it does not exist in the tenant"
+                    if ($GroupTemplates.displayName -eq $_) {
+                        Write-Information "Creating group from template for $_"
+                        $GroupTemplate = $GroupTemplates | Where-Object -Property displayName -EQ $_
+                        $NewGroup = New-CIPPGroup -GroupObject $GroupTemplate -TenantFilter $TenantFilter -APIName 'New-CIPPCAPolicy'
+                        $GroupIds.Add($NewGroup.GroupId)
+                    } else {
+                        Write-Information "No template found, creating security group for $_"
+                        $username = $_ -replace '[^a-zA-Z0-9]', ''
+                        if ($username.Length -gt 64) {
+                            $username = $username.Substring(0, 64)
+                        }
+                        $GroupObject = @{
+                            groupType       = 'generic'
+                            displayName     = $_
+                            username        = $username
+                            securityEnabled = $true
+                        }
+                        $NewGroup = New-CIPPGroup -GroupObject $GroupObject -TenantFilter $TenantFilter -APIName 'New-CIPPCAPolicy'
+                        $GroupIds.Add($NewGroup.GroupId)
                     }
                 } else {
                     Write-Warning "Group $_ not found in the tenant"
@@ -185,10 +208,31 @@ function New-CIPPCAPolicy {
             if ($JSONobj.conditions.users.excludeGroups) { $JSONobj.conditions.users.excludeGroups = @() }
         }
         'displayName' {
+            $TemplatesTable = Get-CIPPTable -tablename 'templates'
+            $GroupTemplates = Get-CIPPAzDataTableEntity @TemplatesTable -filter "PartitionKey eq 'GroupTemplate'" | ForEach-Object {
+                if ($_.JSON -and (Test-Json -Json $_.JSON -ErrorAction SilentlyContinue)) {
+                    $Group = $_.JSON | ConvertFrom-Json
+                    $Group
+                }
+            }
             try {
                 Write-Information 'Replacement pattern for inclusions and exclusions is displayName.'
-                $users = New-GraphGETRequest -uri 'https://graph.microsoft.com/beta/users?$select=id,displayName' -tenantid $TenantFilter -asApp $true
-                $groups = New-GraphGETRequest -uri 'https://graph.microsoft.com/beta/groups?$select=id,displayName' -tenantid $TenantFilter -asApp $true
+                $Requests = @(
+                    @{
+                        url    = 'users?$select=id,displayName&$top=999'
+                        method = 'GET'
+                        id     = 'users'
+                    }
+                    @{
+                        url    = 'groups?$select=id,displayName&$top=999'
+                        method = 'GET'
+                        id     = 'groups'
+                    }
+                )
+                $BulkResults = New-GraphBulkRequest -Requests $Requests -tenantid $TenantFilter -asapp $true
+
+                $users = ($BulkResults | Where-Object { $_.id -eq 'users' }).body.value
+                $groups = ($BulkResults | Where-Object { $_.id -eq 'groups' }).body.value
 
                 foreach ($userType in 'includeUsers', 'excludeUsers') {
                     if ($JSONobj.conditions.users.PSObject.Properties.Name -contains $userType -and $JSONobj.conditions.users.$userType -notin 'All', 'None', 'GuestOrExternalUsers') {
@@ -199,7 +243,7 @@ function New-CIPPCAPolicy {
                 # Check the included and excluded groups
                 foreach ($groupType in 'includeGroups', 'excludeGroups') {
                     if ($JSONobj.conditions.users.PSObject.Properties.Name -contains $groupType) {
-                        $JSONobj.conditions.users.$groupType = @(Replace-GroupNameWithId -groupNames $JSONobj.conditions.users.$groupType)
+                        $JSONobj.conditions.users.$groupType = @(Replace-GroupNameWithId -groupNames $JSONobj.conditions.users.$groupType -CreateGroups $CreateGroups -TenantFilter $TenantFilter -GroupTemplates $GroupTemplates)
                     }
                 }
             } catch {
@@ -246,18 +290,42 @@ function New-CIPPCAPolicy {
     Write-Information $RawJSON
     try {
         Write-Information 'Checking for existing policies'
-        $CheckExististing = New-GraphGETRequest -uri 'https://graph.microsoft.com/beta/identity/conditionalAccess/policies' -tenantid $TenantFilter -asApp $true | Where-Object -Property displayName -EQ $displayname
-        if ($CheckExististing) {
+        $CheckExisting = New-GraphGETRequest -uri 'https://graph.microsoft.com/beta/identity/conditionalAccess/policies' -tenantid $TenantFilter -asApp $true | Where-Object -Property displayName -EQ $displayname
+        if ($CheckExisting) {
             if ($Overwrite -ne $true) {
                 throw "Conditional Access Policy with Display Name $($Displayname) Already exists"
                 return $false
             } else {
                 if ($State -eq 'donotchange') {
-                    $JSONobj.state = $CheckExististing.state
+                    $JSONobj.state = $CheckExisting.state
                     $RawJSON = ConvertTo-Json -InputObject $JSONobj -Depth 10 -Compress
                 }
-                Write-Information "overwriting $($CheckExististing.id)"
-                $null = New-GraphPOSTRequest -uri "https://graph.microsoft.com/beta/identity/conditionalAccess/policies/$($CheckExististing.id)" -tenantid $tenantfilter -type PATCH -body $RawJSON -asApp $true
+                # Preserve any exclusion groups named "Vacation Exclusion - <PolicyDisplayName>" from existing policy
+                try {
+                    $ExistingVacationGroup = New-GraphGETRequest -uri "https://graph.microsoft.com/beta/groups?`$filter=startsWith(displayName,'Vacation Exclusion')&`$select=id,displayName&`$top=999&`$count=true" -ComplexFilter -tenantid $TenantFilter -asApp $true |
+                        Where-Object { $CheckExisting.conditions.users.excludeGroups -contains $_.id }
+                    if ($ExistingVacationGroup) {
+                        if (-not ($JSONobj.conditions.users.PSObject.Properties.Name -contains 'excludeGroups')) {
+                            $JSONobj.conditions.users | Add-Member -NotePropertyName 'excludeGroups' -NotePropertyValue @() -Force
+                        }
+                        if ($JSONobj.conditions.users.excludeGroups -notcontains $ExistingVacationGroup.id) {
+                            Write-Information "Preserving vacation exclusion group $($ExistingVacationGroup.displayName)"
+                            $NewExclusions = [system.collections.generic.list[string]]::new()
+                            # Convert each item to string explicitly to avoid type conversion issues
+                            foreach ($group in $JSONobj.conditions.users.excludeGroups) {
+                                $NewExclusions.Add([string]$group)
+                            }
+                            $NewExclusions.Add($ExistingVacationGroup.id)
+                            $JSONobj.conditions.users.excludeGroups = $NewExclusions
+                        }
+                        # Re-render RawJSON after modification
+                        $RawJSON = ConvertTo-Json -InputObject $JSONobj -Depth 10 -Compress
+                    }
+                } catch {
+                    Write-Information "Failed to preserve vacation exclusion group: $($_.Exception.Message)"
+                }
+                Write-Information "overwriting $($CheckExisting.id)"
+                $null = New-GraphPOSTRequest -uri "https://graph.microsoft.com/beta/identity/conditionalAccess/policies/$($CheckExisting.id)" -tenantid $tenantfilter -type PATCH -body $RawJSON -asApp $true
                 Write-LogMessage -Headers $User -API 'Create CA Policy' -tenant $($Tenant) -message "Updated Conditional Access Policy $($JSONobj.Displayname) to the template standard." -Sev 'Info'
                 return "Updated policy $displayname for $tenantfilter"
             }
