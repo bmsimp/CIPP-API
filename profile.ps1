@@ -23,11 +23,13 @@ if (-not $global:TelemetryClient) {
             $config = [Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration]::CreateDefault()
             $config.ConnectionString = $connectionString
             $global:TelemetryClient = [Microsoft.ApplicationInsights.TelemetryClient]::new($config)
+            Enable-CippConsoleLogging
             Write-Information 'TelemetryClient initialized with connection string'
         } elseif ($env:APPINSIGHTS_INSTRUMENTATIONKEY) {
             # Fall back to instrumentation key
             $global:TelemetryClient = [Microsoft.ApplicationInsights.TelemetryClient]::new()
             $global:TelemetryClient.InstrumentationKey = $env:APPINSIGHTS_INSTRUMENTATIONKEY
+            Enable-CippConsoleLogging
             Write-Information 'TelemetryClient initialized with instrumentation key'
         } else {
             Write-Warning 'No Application Insights connection string or instrumentation key found'
@@ -100,6 +102,7 @@ if (!$LastStartup -or $CurrentVersion -ne $LastStartup.Version) {
     Remove-AzDataTableEntity @ReleaseTable -Entity @{ PartitionKey = 'GitHubReleaseNotes'; RowKey = 'GitHubReleaseNotes' } -ErrorAction SilentlyContinue
     Write-Host 'Cleared GitHub release notes cache to force refresh on version update.'
 }
+
 # Uncomment the next line to enable legacy AzureRm alias in Azure PowerShell.
 # Enable-AzureRmAlias
 
