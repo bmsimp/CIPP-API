@@ -23,14 +23,14 @@ function Set-CIPPStandardsCompareField {
         try {
             if ($Existing) {
                 $Existing.Value = $FieldValue
-                $Existing | Add-Member -NotePropertyName TemplateId -NotePropertyValue $script:StandardInfo.StandardTemplateId -Force
+                $Existing | Add-Member -NotePropertyName TemplateId -NotePropertyValue ([string]$script:CippStandardInfoStorage.Value.StandardTemplateId) -Force
                 Add-CIPPAzDataTableEntity @Table -Entity $Existing -Force
             } else {
                 $Result = [PSCustomObject]@{
                     PartitionKey = [string]$TenantName.defaultDomainName
                     RowKey       = [string]$FieldName
                     Value        = $FieldValue
-                    TemplateId   = $script:StandardInfo.StandardTemplateId
+                    TemplateId   = [string]$script:CippStandardInfoStorage.Value.StandardTemplateId
                 }
                 Add-CIPPAzDataTableEntity @Table -Entity $Result -Force
             }

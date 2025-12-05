@@ -24,12 +24,10 @@ function Get-CIPPTenantAlignment {
         [Parameter(Mandatory = $false)]
         [string]$TemplateId
     )
-
+    $TemplateTable = Get-CippTable -tablename 'templates'
+    $TemplateFilter = "PartitionKey eq 'StandardsTemplateV2'"
     try {
         # Get all standard templates
-        $TemplateTable = Get-CippTable -tablename 'templates'
-        $TemplateFilter = "PartitionKey eq 'StandardsTemplateV2'"
-
         $Templates = (Get-CIPPAzDataTableEntity @TemplateTable -Filter $TemplateFilter) | ForEach-Object {
             $JSON = $_.JSON -replace '"Action":', '"action":'
             try {
@@ -51,19 +49,30 @@ function Get-CIPPTenantAlignment {
         }
 
         # Get standards comparison data
-        $StandardsTable = Get-CIPPTable -TableName 'CippStandardsReports'
-        $AllStandards = Get-CIPPAzDataTableEntity @StandardsTable -Filter "PartitionKey ne 'StandardReport' and PartitionKey ne ''"
+        $AllStandards = Measure-CippTask -TaskName 'LoadStandardsData' -EventName 'CIPP.AlignmentStatus' -Metadata @{
+            Tenant  = $TenantFilter
+            Section = 'LoadStandardsData'
+        } -Script {
+            $StandardsTable = Get-CippTable -TableName 'CippStandardsReports'
+            #this if statement is to bring down performance when running scheduled checks, we have to revisit this to a better query due to the extreme size this can get.
+            if ($TenantFilter) {
+                $filter = "PartitionKey eq '$TenantFilter'"
+            } else {
+                $filter = "PartitionKey ne 'StandardReport' and PartitionKey ne ''"
+            }
+            Get-CIPPAzDataTableEntity @StandardsTable -Filter $filter
+        }
 
         # Filter by tenant if specified
         $Standards = if ($TenantFilter) {
-            $AllStandards | Where-Object { $_.PartitionKey -eq $TenantFilter }
+            $AllStandards
         } else {
             $Tenants = Get-Tenants -IncludeErrors
             $AllStandards | Where-Object { $_.PartitionKey -in $Tenants.defaultDomainName }
         }
 
         # Build tenant standards data structure
-        $TenantStandards = @{}
+        $tenantData = @{}
         foreach ($Standard in $Standards) {
             $FieldName = $Standard.RowKey
             $FieldValue = $Standard.Value
@@ -86,14 +95,15 @@ function Get-CIPPTenantAlignment {
                 $FieldValue = [string]$FieldValue
             }
 
-            if (-not $TenantStandards.ContainsKey($Tenant)) {
-                $TenantStandards[$Tenant] = @{}
+            if (-not $tenantData.ContainsKey($Tenant)) {
+                $tenantData[$Tenant] = @{}
             }
-            $TenantStandards[$Tenant][$FieldName] = @{
+            $tenantData[$Tenant][$FieldName] = @{
                 Value       = $FieldValue
                 LastRefresh = $Standard.TimeStamp.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
             }
         }
+        $TenantStandards = $tenantData
 
         $Results = [System.Collections.Generic.List[object]]::new()
 

@@ -10,6 +10,7 @@ function Invoke-ListApiTest {
 
     $Response = @{}
     $Response.Request = $Request
+    $Response.TriggerMetadata = $TriggerMetadata
     if ($env:DEBUG_ENV_VARS -eq 'true') {
         $BlockedKeys = @('ApplicationSecret', 'RefreshToken', 'AzureWebJobsStorage', 'DEPLOYMENT_STORAGE_CONNECTION_STRING')
         $EnvironmentVariables = [PSCustomObject]@{}
@@ -18,8 +19,8 @@ function Invoke-ListApiTest {
         }
         $Response.EnvironmentVariables = $EnvironmentVariables
     }
-    $Response.AllowedTenants = $script:AllowedTenants
-    $Response.AllowedGroups = $script:AllowedGroups
+    $Response.AllowedTenants = $script:CippAllowedTenantsStorage.Value
+    $Response.AllowedGroups = $script:CippAllowedGroupsStorage.Value
 
     return ([HttpResponseContext]@{
             StatusCode = [HttpStatusCode]::OK
