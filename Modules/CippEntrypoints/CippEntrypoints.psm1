@@ -227,7 +227,12 @@ function Receive-CippOrchestrationTrigger {
                 $Output = $Output | Where-Object { $_.GetType().Name -eq 'ActivityInvocationTask' }
                 if (($Output | Measure-Object).Count -gt 0) {
                     Write-Information "Waiting for ($($Output.Count)) activity functions to complete..."
-                    $Results = Wait-ActivityFunction -Task @($Output)
+                    foreach ($Task in $Output) {
+                        Write-Information ($Task | ConvertTo-Json -Depth 10 -Compress)
+                        try {
+                            $Results = Wait-ActivityFunction -Task $Task
+                        } catch {}
+                    }
                 } else {
                     $Results = @()
                 }
@@ -338,6 +343,7 @@ function Receive-CippActivityTrigger {
                 $Output = Measure-CippTask -TaskName $taskName -Metadata $metadata -Script {
                     Invoke-Command -ScriptBlock { & $FunctionName -Item $Item }
                 }
+                $Status = 'Completed'
 
                 Write-Verbose "Activity completed Function: $FunctionName."
                 if ($TaskStatus) {
@@ -346,6 +352,7 @@ function Receive-CippActivityTrigger {
                 }
             } catch {
                 $ErrorMsg = $_.Exception.Message
+                $Status = 'Failed'
                 if ($TaskStatus) {
                     $QueueTask.Status = 'Failed'
                     $QueueTask.Message = $ErrorMsg
@@ -354,6 +361,7 @@ function Receive-CippActivityTrigger {
             }
         } else {
             $ErrorMsg = 'Function not provided'
+            $Status = 'Failed'
             if ($TaskStatus) {
                 $QueueTask.Status = 'Failed'
                 $null = Set-CippQueueTask @QueueTask
@@ -361,6 +369,8 @@ function Receive-CippActivityTrigger {
         }
     } catch {
         Write-Error "Error in Receive-CippActivityTrigger: $($_.Exception.Message)"
+        $Status = 'Failed'
+        $Output = $null
         if ($TaskStatus) {
             $QueueTask.Status = 'Failed'
             $null = Set-CippQueueTask @QueueTask
@@ -371,7 +381,7 @@ function Receive-CippActivityTrigger {
     if ($null -ne $Output -and $Output -ne '') {
         return $Output
     } else {
-        return
+        return "Activity function ended with status $($Status)."
     }
 }
 
@@ -429,11 +439,21 @@ function Receive-CIPPTimerTrigger {
             if ($Parameters.Count -gt 0) {
                 $metadata['ParameterCount'] = $Parameters.Count
                 # Add specific known parameters
+                Write-Host "CIPP TIMER PARAMETERS: $($Parameters | ConvertTo-Json -Depth 10 -Compress)"
                 if ($Parameters.Tenant) {
                     $metadata['Tenant'] = $Parameters.Tenant
                 }
                 if ($Parameters.TenantFilter) {
                     $metadata['Tenant'] = $Parameters.TenantFilter
+                }
+                if ($Parameters.TenantFilter.value) {
+                    $metadata['Tenant'] = $Parameters.TenantFilter.value
+                }
+                if ($Parameters.Tenant.value) {
+                    $metadata['Tenant'] = $Parameters.Tenant.value
+                }
+                if ($Parameters.Tenant.defaultDomainName) {
+                    $metadata['Tenant'] = $Parameters.Tenant.defaultDomainName
                 }
             }
 
