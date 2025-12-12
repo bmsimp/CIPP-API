@@ -278,7 +278,15 @@ function Receive-CippActivityTrigger {
     try {
         $Output = $null
         Set-Location (Get-Item $PSScriptRoot).Parent.Parent.FullName
+        $metric = @{
+            Kind     = 'CIPPCommandStart'
+            Command  = $Item.Command
+            Tenant   = $Item.TenantFilter.defaultDomainName
+            TaskName = $Item.TaskName
+            JSONData = ($Item | ConvertTo-Json -Depth 10 -Compress)
+        } | ConvertTo-Json -Depth 10 -Compress
 
+        Write-Information -MessageData $metric -Tag 'CIPPCommandStart'
         if ($Item.QueueId) {
             if ($Item.QueueName) {
                 $QueueName = $Item.QueueName
@@ -400,6 +408,7 @@ function Receive-CIPPTimerTrigger {
 
     $UtcNow = (Get-Date).ToUniversalTime()
     $Functions = Get-CIPPTimerFunctions
+    Write-Host "CIPP Timer Trigger executed at $UtcNow. Found $($Functions.Count) functions to evaluate. The names are as follows: $($Functions.Command -join ', ')"
     $Table = Get-CIPPTable -tablename CIPPTimers
     $Statuses = Get-CIPPAzDataTableEntity @Table
     $FunctionName = $env:WEBSITE_SITE_NAME
