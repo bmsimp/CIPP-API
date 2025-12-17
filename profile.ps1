@@ -9,7 +9,7 @@ if ($env:APPLICATIONINSIGHTS_CONNECTION_STRING -or $env:APPINSIGHTS_INSTRUMENTAT
 }
 if ($hasAppInsights) {
     Set-Location -Path $PSScriptRoot
-$SwAppInsights = [System.Diagnostics.Stopwatch]::StartNew()
+    $SwAppInsights = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $AppInsightsDllPath = Join-Path $PSScriptRoot 'Shared\AppInsights\Microsoft.ApplicationInsights.dll'
         $null = [Reflection.Assembly]::LoadFile($AppInsightsDllPath)
@@ -17,17 +17,14 @@ $SwAppInsights = [System.Diagnostics.Stopwatch]::StartNew()
     } catch {
         Write-Warning "Failed to load Application Insights SDK: $($_.Exception.Message)"
     }
+    $SwAppInsights.Stop()
+    $Timings['AppInsightsSDK'] = $SwAppInsights.Elapsed.TotalMilliseconds
 }
-if (!$hasAppInsights) {
-    Write-Information 'Application Insights not configured; skipping SDK load'
-}
-$SwAppInsights.Stop()
-$Timings['AppInsightsSDK'] = $SwAppInsights.Elapsed.TotalMilliseconds
 
 # Import modules
 $SwModules = [System.Diagnostics.Stopwatch]::StartNew()
 $ModulesPath = Join-Path $PSScriptRoot 'Modules'
-$Modules = @('CIPPCore', 'CippExtensions', 'Az.Accounts', 'AzBobbyTables')
+$Modules = @('CIPPCore', 'CippExtensions', 'AzBobbyTables')
 foreach ($Module in $Modules) {
     $SwModule = [System.Diagnostics.Stopwatch]::StartNew()
     try {
@@ -66,9 +63,9 @@ if ($hasAppInsights -and -not $global:TelemetryClient) {
     } catch {
         Write-Warning "Failed to initialize TelemetryClient: $($_.Exception.Message)"
     }
+    $SwTelemetry.Stop()
+    $Timings['TelemetryClient'] = $SwTelemetry.Elapsed.TotalMilliseconds
 }
-$SwTelemetry.Stop()
-$Timings['TelemetryClient'] = $SwTelemetry.Elapsed.TotalMilliseconds
 
 $SwDurableSDK = [System.Diagnostics.Stopwatch]::StartNew()
 if ($env:ExternalDurablePowerShellSDK -eq $true) {
@@ -82,13 +79,6 @@ if ($env:ExternalDurablePowerShellSDK -eq $true) {
 }
 $SwDurableSDK.Stop()
 $Timings['DurableSDK'] = $SwDurableSDK.Elapsed.TotalMilliseconds
-
-$SwAzContext = [System.Diagnostics.Stopwatch]::StartNew()
-try {
-    $null = Disable-AzContextAutosave -Scope Process
-} catch {}
-$SwAzContext.Stop()
-$Timings['DisableAzContext'] = $SwAzContext.Elapsed.TotalMilliseconds
 
 $SwAuth = [System.Diagnostics.Stopwatch]::StartNew()
 try {
