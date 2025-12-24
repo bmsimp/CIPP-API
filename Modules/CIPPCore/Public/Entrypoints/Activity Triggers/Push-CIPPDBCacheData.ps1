@@ -62,6 +62,10 @@ function Push-CIPPDBCacheData {
             Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "AuthorizationPolicy collection failed: $($_.Exception.Message)" -sev Error
         }
 
+        try { Set-CIPPDBCacheAuthenticationMethodsPolicy -TenantFilter $TenantFilter } catch {
+            Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "AuthenticationMethodsPolicy collection failed: $($_.Exception.Message)" -sev Error
+        }
+
         try { Set-CIPPDBCacheDeviceSettings -TenantFilter $TenantFilter } catch {
             Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "DeviceSettings collection failed: $($_.Exception.Message)" -sev Error
         }
@@ -96,6 +100,50 @@ function Push-CIPPDBCacheData {
 
         try { Set-CIPPDBCachePIMSettings -TenantFilter $TenantFilter } catch {
             Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "PIMSettings collection failed: $($_.Exception.Message)" -sev Error
+        }
+
+        try { Set-CIPPDBCacheDomains -TenantFilter $TenantFilter } catch {
+            Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "Domains collection failed: $($_.Exception.Message)" -sev Error
+        }
+
+        try { Set-CIPPDBCacheRoleEligibilitySchedules -TenantFilter $TenantFilter } catch {
+            Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "RoleEligibilitySchedules collection failed: $($_.Exception.Message)" -sev Error
+        }
+
+        try { Set-CIPPDBCacheRoleManagementPolicies -TenantFilter $TenantFilter } catch {
+            Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "RoleManagementPolicies collection failed: $($_.Exception.Message)" -sev Error
+        }
+
+        try { Set-CIPPDBCacheRoleAssignmentScheduleInstances -TenantFilter $TenantFilter } catch {
+            Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "RoleAssignmentScheduleInstances collection failed: $($_.Exception.Message)" -sev Error
+        }
+
+        try { Set-CIPPDBCacheB2BManagementPolicy -TenantFilter $TenantFilter } catch {
+            Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "B2BManagementPolicy collection failed: $($_.Exception.Message)" -sev Error
+        }
+
+        try { Set-CIPPDBCacheAuthenticationFlowsPolicy -TenantFilter $TenantFilter } catch {
+            Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "AuthenticationFlowsPolicy collection failed: $($_.Exception.Message)" -sev Error
+        }
+
+        try { Set-CIPPDBCacheRiskyUsers -TenantFilter $TenantFilter } catch {
+            Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "RiskyUsers collection failed: $($_.Exception.Message)" -sev Error
+        }
+
+        try { Set-CIPPDBCacheRiskyServicePrincipals -TenantFilter $TenantFilter } catch {
+            Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "RiskyServicePrincipals collection failed: $($_.Exception.Message)" -sev Error
+        }
+
+        try { Set-CIPPDBCacheServicePrincipalRiskDetections -TenantFilter $TenantFilter } catch {
+            Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "ServicePrincipalRiskDetections collection failed: $($_.Exception.Message)" -sev Error
+        }
+
+        try { Set-CIPPDBCacheRiskDetections -TenantFilter $TenantFilter } catch {
+            Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "RiskDetections collection failed: $($_.Exception.Message)" -sev Error
+        }
+
+        try { Set-CIPPDBCacheDeviceRegistrationPolicy -TenantFilter $TenantFilter } catch {
+            Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "DeviceRegistrationPolicy collection failed: $($_.Exception.Message)" -sev Error
         }
 
         Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message 'Completed database cache collection for tenant' -sev Info
