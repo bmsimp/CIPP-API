@@ -93,6 +93,23 @@ function Invoke-ListTests {
         $IdentityResults = $TestResultsData.TestResults | Where-Object { $_.TestType -eq 'Identity' }
         $DeviceResults = $TestResultsData.TestResults | Where-Object { $_.TestType -eq 'Devices' }
 
+        # Add descriptions from markdown files to each test result
+        foreach ($TestResult in $TestResultsData.TestResults) {
+            $MdFile = Get-ChildItem -Path 'Modules\CIPPCore\Public\Tests' -Filter "*$($TestResult.RowKey).md" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($MdFile) {
+                try {
+                    $MdContent = Get-Content $MdFile.FullName -Raw -ErrorAction SilentlyContinue
+                    if ($MdContent) {
+                        $Description = ($MdContent -split '<!--- Results --->')[0].Trim()
+                        $Description = ($Description -split '%TestResult%')[0].Trim()
+                        $TestResult | Add-Member -NotePropertyName 'Description' -NotePropertyValue $Description -Force
+                    }
+                } catch {
+                    #Test
+                }
+            }
+        }
+
         $TestCounts = @{
             Identity = @{
                 Passed      = @($IdentityResults | Where-Object { $_.Status -eq 'Passed' }).Count
@@ -114,11 +131,11 @@ function Invoke-ListTests {
 
         $SecureScoreData = New-CIPPDbRequest -TenantFilter $TenantFilter -Type 'SecureScore'
         if ($SecureScoreData) {
-            $TestResultsData | Add-Member -NotePropertyName 'SecureScore' -NotePropertyValue $SecureScoreData -Force
+            $TestResultsData | Add-Member -NotePropertyName 'SecureScore' -NotePropertyValue @($SecureScoreData) -Force
         }
         $MFAStateData = New-CIPPDbRequest -TenantFilter $TenantFilter -Type 'MFAState'
         if ($MFAStateData) {
-            $TestResultsData | Add-Member -NotePropertyName 'MFAState' -NotePropertyValue $MFAStateData -Force
+            $TestResultsData | Add-Member -NotePropertyName 'MFAState' -NotePropertyValue @($MFAStateData) -Force
         }
 
         $LicenseData = New-CIPPDbRequest -TenantFilter $TenantFilter -Type 'LicenseOverview'
