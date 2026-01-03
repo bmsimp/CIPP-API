@@ -1,4 +1,8 @@
 function Invoke-CippTestZTNA24870 {
+    <#
+    .SYNOPSIS
+    Secure Wi-Fi profiles protect macOS devices from unauthorized network access
+    #>
     param($Tenant)
 
     $TestId = 'ZTNA24870'
@@ -8,7 +12,7 @@ function Invoke-CippTestZTNA24870 {
         $DeviceConfigs = New-CIPPDbRequest -TenantFilter $Tenant -Type 'IntuneDeviceConfigurations'
 
         if (-not $DeviceConfigs) {
-            Add-CippTestResult -TenantFilter $Tenant -TestId $TestId -TestType 'Devices' -Status 'Investigate' -ResultMarkdown 'Device configurations not found in database' -Risk 'High' -Name 'Secure Wi-Fi profiles protect macOS devices from unauthorized network access' -UserImpact 'Low' -ImplementationEffort 'Low' -Category 'Data'
+            Add-CippTestResult -TenantFilter $Tenant -TestId $TestId -TestType 'Devices' -Status 'Skipped' -ResultMarkdown 'No data found in database. This may be due to missing required licenses or data collection not yet completed.' -Risk 'High' -Name 'Secure Wi-Fi profiles protect macOS devices from unauthorized network access' -UserImpact 'Low' -ImplementationEffort 'Low' -Category 'Data'
             return
         }
 

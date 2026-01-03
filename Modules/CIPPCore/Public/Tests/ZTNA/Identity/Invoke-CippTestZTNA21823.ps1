@@ -1,4 +1,8 @@
 function Invoke-CippTestZTNA21823 {
+    <#
+    .SYNOPSIS
+    Guest self-service sign-up via user flow is disabled
+    #>
     param($Tenant)
 
     $TestId = 'ZTNA21823'
@@ -8,7 +12,7 @@ function Invoke-CippTestZTNA21823 {
         $AuthFlowPolicy = New-CIPPDbRequest -TenantFilter $Tenant -Type 'AuthenticationFlowsPolicy'
 
         if (-not $AuthFlowPolicy) {
-            Add-CippTestResult -TenantFilter $Tenant -TestId $TestId -TestType 'Identity' -Status 'Investigate' -ResultMarkdown 'Authentication flows policy not found' -Risk 'Medium' -Name 'Guest self-service sign-up via user flow is disabled' -UserImpact 'Low' -ImplementationEffort 'Low' -Category 'External collaboration'
+            Add-CippTestResult -TenantFilter $Tenant -TestId $TestId -TestType 'Identity' -Status 'Skipped' -ResultMarkdown 'No data found in database. This may be due to missing required licenses or data collection not yet completed.' -Risk 'Medium' -Name 'Guest self-service sign-up via user flow is disabled' -UserImpact 'Low' -ImplementationEffort 'Low' -Category 'External collaboration'
             return
         }
 

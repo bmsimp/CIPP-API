@@ -1,4 +1,8 @@
 function Invoke-CippTestZTNA24545 {
+    <#
+    .SYNOPSIS
+    Compliance policies protect fully managed and corporate-owned Android devices
+    #>
     param($Tenant)
 
     $TestId = 'ZTNA24545'
@@ -8,7 +12,7 @@ function Invoke-CippTestZTNA24545 {
         $IntunePolicies = New-CIPPDbRequest -TenantFilter $Tenant -Type 'IntuneDeviceCompliancePolicies'
 
         if (-not $IntunePolicies) {
-            Add-CippTestResult -TenantFilter $Tenant -TestId $TestId -TestType 'Devices' -Status 'Investigate' -ResultMarkdown 'Intune policies not found in database' -Risk 'High' -Name 'Compliance policies protect fully managed and corporate-owned Android devices' -UserImpact 'Medium' -ImplementationEffort 'Low' -Category 'Tenant'
+            Add-CippTestResult -TenantFilter $Tenant -TestId $TestId -TestType 'Devices' -Status 'Skipped' -ResultMarkdown 'No data found in database. This may be due to missing required licenses or data collection not yet completed.' -Risk 'High' -Name 'Compliance policies protect fully managed and corporate-owned Android devices' -UserImpact 'Medium' -ImplementationEffort 'Low' -Category 'Tenant'
             return
         }
 

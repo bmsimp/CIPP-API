@@ -1,4 +1,8 @@
 function Invoke-CippTestZTNA24569 {
+    <#
+    .SYNOPSIS
+    FileVault encryption protects data on macOS devices
+    #>
     param($Tenant)
 
     $TestId = 'ZTNA24569'
@@ -8,7 +12,7 @@ function Invoke-CippTestZTNA24569 {
         $DeviceConfigs = New-CIPPDbRequest -TenantFilter $Tenant -Type 'IntuneDeviceConfigurations'
 
         if (-not $DeviceConfigs) {
-            Add-CippTestResult -TenantFilter $Tenant -TestId $TestId -TestType 'Devices' -Status 'Investigate' -ResultMarkdown 'Device configurations not found in database' -Risk 'High' -Name 'FileVault encryption protects data on macOS devices' -UserImpact 'Medium' -ImplementationEffort 'Low' -Category 'Device'
+            Add-CippTestResult -TenantFilter $Tenant -TestId $TestId -TestType 'Devices' -Status 'Skipped' -ResultMarkdown 'No data found in database. This may be due to missing required licenses or data collection not yet completed.' -Risk 'High' -Name 'FileVault encryption protects data on macOS devices' -UserImpact 'Medium' -ImplementationEffort 'Low' -Category 'Device'
             return
         }
 

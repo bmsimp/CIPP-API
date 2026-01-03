@@ -1,4 +1,8 @@
 function Invoke-CippTestZTNA21842 {
+    <#
+    .SYNOPSIS
+    Block administrators from using SSPR
+    #>
     param($Tenant)
 
     $TestId = 'ZTNA21842'
@@ -8,7 +12,7 @@ function Invoke-CippTestZTNA21842 {
         $AuthorizationPolicy = New-CIPPDbRequest -TenantFilter $Tenant -Type 'AuthorizationPolicy'
 
         if (-not $AuthorizationPolicy) {
-            Add-CippTestResult -TenantFilter $Tenant -TestId $TestId -TestType 'Identity' -Status 'Investigate' -ResultMarkdown 'Authorization policy not found in database' -Risk 'High' -Name 'Block administrators from using SSPR' -UserImpact 'Low' -ImplementationEffort 'Low' -Category 'Credential management'
+            Add-CippTestResult -TenantFilter $Tenant -TestId $TestId -TestType 'Identity' -Status 'Skipped' -ResultMarkdown 'No data found in database. This may be due to missing required licenses or data collection not yet completed.' -Risk 'High' -Name 'Block administrators from using SSPR' -UserImpact 'Low' -ImplementationEffort 'Low' -Category 'Credential management'
             return
         }
 

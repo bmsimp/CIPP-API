@@ -1,11 +1,15 @@
 function Invoke-CippTestZTNA24568 {
+    <#
+    .SYNOPSIS
+    Platform SSO is configured to strengthen authentication on macOS devices
+    #>
     param($Tenant)
     #Tested - Device
 
     try {
         $ConfigPolicies = New-CIPPDbRequest -TenantFilter $Tenant -Type 'IntuneConfigurationPolicies'
         if (-not $ConfigPolicies) {
-            Add-CippTestResult -TenantFilter $Tenant -TestId 'ZTNA24568' -TestType 'Devices' -Status 'Investigate' -ResultMarkdown 'Configuration policy data not found in database' -Risk 'Medium' -Name 'Platform SSO is configured to strengthen authentication on macOS devices' -UserImpact 'Medium' -ImplementationEffort 'Medium' -Category 'Tenant'
+            Add-CippTestResult -TenantFilter $Tenant -TestId 'ZTNA24568' -TestType 'Devices' -Status 'Skipped' -ResultMarkdown 'No data found in database. This may be due to missing required licenses or data collection not yet completed.' -Risk 'Medium' -Name 'Platform SSO is configured to strengthen authentication on macOS devices' -UserImpact 'Medium' -ImplementationEffort 'Medium' -Category 'Tenant'
             return
         }
 

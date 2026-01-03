@@ -1,11 +1,15 @@
 function Invoke-CippTestZTNA21804 {
+    <#
+    .SYNOPSIS
+    SMS and Voice Call authentication methods are disabled
+    #>
     param($Tenant)
     #Tested
     try {
         $authMethodsPolicy = New-CIPPDbRequest -TenantFilter $Tenant -Type 'AuthenticationMethodsPolicy'
 
         if (-not $authMethodsPolicy) {
-            Add-CippTestResult -TenantFilter $Tenant -TestId 'ZTNA21804' -TestType 'Identity' -Status 'Investigate' -ResultMarkdown 'Authentication methods policy not found in database' -Risk 'High' -Name 'SMS and Voice Call authentication methods are disabled' -UserImpact 'Medium' -ImplementationEffort 'Medium' -Category 'Credential Management'
+            Add-CippTestResult -TenantFilter $Tenant -TestId 'ZTNA21804' -TestType 'Identity' -Status 'Skipped' -ResultMarkdown 'No data found in database. This may be due to missing required licenses or data collection not yet completed.' -Risk 'High' -Name 'SMS and Voice Call authentication methods are disabled' -UserImpact 'Medium' -ImplementationEffort 'Medium' -Category 'Credential Management'
             return
         }
 
