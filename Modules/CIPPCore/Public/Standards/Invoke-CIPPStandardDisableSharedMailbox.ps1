@@ -37,7 +37,7 @@ function Invoke-CIPPStandardDisableSharedMailbox {
     param($Tenant, $Settings)
 
     try {
-        $UserList = New-GraphGetRequest -uri 'https://graph.microsoft.com/beta/users?$top=999&$filter=accountEnabled eq true and onPremisesSyncEnabled ne true&$count=true' -Tenantid $Tenant -ComplexFilter
+        $UserList = New-GraphGetRequest -uri 'https://graph.microsoft.com/beta/users?$top=999&$filter=accountEnabled eq true and onPremisesSyncEnabled ne true&$count=true&$select=id,userPrincipalName' -Tenantid $Tenant -ComplexFilter
         $SharedMailboxList = (New-GraphGetRequest -uri "https://outlook.office365.com/adminapi/beta/$($Tenant)/Mailbox" -Tenantid $Tenant -scope ExchangeOnline | Where-Object { $_.RecipientTypeDetails -eq 'SharedMailbox' -or $_.RecipientTypeDetails -eq 'SchedulingMailbox' -and $_.UserPrincipalName -in $UserList.UserPrincipalName })
     } catch {
         $ErrorMessage = Get-NormalizedError -Message $_.Exception.Message
@@ -46,16 +46,37 @@ function Invoke-CIPPStandardDisableSharedMailbox {
     }
 
     if ($Settings.remediate -eq $true) {
-
-        if ($SharedMailboxList) {
-            $SharedMailboxList | ForEach-Object {
-                try {
-                    New-GraphPOSTRequest -uri "https://graph.microsoft.com/v1.0/users/$($_.ObjectKey)" -type PATCH -body '{"accountEnabled":"false"}' -tenantid $Tenant
-                    Write-LogMessage -API 'Standards' -tenant $Tenant -message "Entra account for shared mailbox $($_.DisplayName) disabled." -sev Info
-                } catch {
-                    $ErrorMessage = Get-CippException -Exception $_
-                    Write-LogMessage -API 'Standards' -tenant $Tenant -message "Failed to disable Entra account for shared mailbox. Error: $($ErrorMessage.NormalizedError)" -sev Error -LogData $ErrorMessage
+        if ($SharedMailboxList.Count -gt 0) {
+            $int = 0
+            $BulkRequests = foreach ($Mailbox in $SharedMailboxList) {
+                @{
+                    id        = $int++
+                    method    = 'PATCH'
+                    url       = "users/$($Mailbox.ObjectKey)"
+                    body      = @{ accountEnabled = $false }
+                    'headers' = @{
+                        'Content-Type' = 'application/json'
+                    }
                 }
+            }
+
+            try {
+                $BulkResults = New-GraphBulkRequest -tenantid $Tenant -Requests @($BulkRequests)
+
+                for ($i = 0; $i -lt $BulkResults.Count; $i++) {
+                    $result = $BulkResults[$i]
+                    $Mailbox = $SharedMailboxList[$i]
+
+                    if ($result.status -eq 200 -or $result.status -eq 204) {
+                        Write-LogMessage -API 'Standards' -tenant $Tenant -message "Entra account for shared mailbox $($Mailbox.DisplayName) ($($Mailbox.ObjectKey)) disabled." -sev Info
+                    } else {
+                        $errorMsg = if ($result.body.error.message) { $result.body.error.message } else { "Unknown error (Status: $($result.status))" }
+                        Write-LogMessage -API 'Standards' -tenant $Tenant -message "Failed to disable Entra account for shared mailbox $($Mailbox.DisplayName) ($($Mailbox.ObjectKey)): $errorMsg" -sev Error
+                    }
+                }
+            } catch {
+                $ErrorMessage = Get-CippException -Exception $_
+                Write-LogMessage -API 'Standards' -tenant $Tenant -message "Failed to process bulk disable shared mailboxes request: $($ErrorMessage.NormalizedError)" -sev Error -LogData $ErrorMessage
             }
         } else {
             Write-LogMessage -API 'Standards' -tenant $Tenant -message 'All Entra accounts for shared mailboxes are already disabled.' -sev Info
