@@ -39,8 +39,8 @@ function Invoke-ExecAzBobbyTables {
         }
         try {
             $Results = & $Function -Context $Context @Params
-            if (!$Results) {
-                $Results = "Function $Function executed successfully"
+            if ($null -eq $Results) {
+                $Results = @()
             }
             $StatusCode = [HttpStatusCode]::OK
         } catch {
