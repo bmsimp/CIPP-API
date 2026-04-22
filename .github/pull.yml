@@ -6,3 +6,6 @@ rules:
   - base: dev
     upstream: KelvinTegelaar:dev
     mergeMethod: merge
+  - base: fix/alert-notification-pipeline
+    upstream: KelvinTegelaar:dev
+    mergeMethod: merge
