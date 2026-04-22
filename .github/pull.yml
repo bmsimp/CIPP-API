@@ -8,4 +8,4 @@ rules:
     mergeMethod: merge
   - base: fix/alert-notification-pipeline
     upstream: KelvinTegelaar:dev
-    mergeMethod: merge
+    mergeMethod: rebase
