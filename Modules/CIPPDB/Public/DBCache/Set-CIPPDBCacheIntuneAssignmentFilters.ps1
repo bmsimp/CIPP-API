@@ -7,7 +7,7 @@ function Set-CIPPDBCacheIntuneAssignmentFilters {
     )
 
     try {
-        $TestResult = Test-CIPPStandardLicense -StandardName 'IntuneAssignmentFiltersCache' -TenantFilter $TenantFilter -RequiredCapabilities @('INTUNE_A', 'MDM_Services', 'EMS', 'SCCM', 'MICROSOFTINTUNEPLAN1') -SkipLog
+        $TestResult = Test-CIPPStandardLicense -StandardName 'IntuneAssignmentFiltersCache' -TenantFilter $TenantFilter -Preset Intune -SkipLog
         if ($TestResult -eq $false) {
             Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message 'Tenant does not have Intune license, skipping assignment filters cache' -sev Debug
             return
@@ -17,8 +17,7 @@ function Set-CIPPDBCacheIntuneAssignmentFilters {
         $AssignmentFilters = New-GraphGetRequest -uri 'https://graph.microsoft.com/beta/deviceManagement/assignmentFilters' -tenantid $TenantFilter
         if (-not $AssignmentFilters) { $AssignmentFilters = @() }
 
-        Add-CIPPDbItem -TenantFilter $TenantFilter -Type 'IntuneAssignmentFilters' -Data @($AssignmentFilters)
-        Add-CIPPDbItem -TenantFilter $TenantFilter -Type 'IntuneAssignmentFilters' -Data @($AssignmentFilters) -Count
+        Add-CIPPDbItem -TenantFilter $TenantFilter -Type 'IntuneAssignmentFilters' -Data @($AssignmentFilters) -AddCount
 
         Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "Cached $(($AssignmentFilters | Measure-Object).Count) assignment filters" -sev Debug
     } catch {

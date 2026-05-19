@@ -7,7 +7,7 @@ function Set-CIPPDBCacheIntuneReusableSettings {
     )
 
     try {
-        $TestResult = Test-CIPPStandardLicense -StandardName 'IntuneReusableSettingsCache' -TenantFilter $TenantFilter -RequiredCapabilities @('INTUNE_A', 'MDM_Services', 'EMS', 'SCCM', 'MICROSOFTINTUNEPLAN1') -SkipLog
+        $TestResult = Test-CIPPStandardLicense -StandardName 'IntuneReusableSettingsCache' -TenantFilter $TenantFilter -Preset Intune -SkipLog
         if ($TestResult -eq $false) {
             Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message 'Tenant does not have Intune license, skipping reusable settings cache' -sev Debug
             return
@@ -29,8 +29,7 @@ function Set-CIPPDBCacheIntuneReusableSettings {
         $Settings = New-GraphGetRequest -uri "https://graph.microsoft.com/beta/deviceManagement/reusablePolicySettings$SelectQuery" -tenantid $TenantFilter
         if (-not $Settings) { $Settings = @() }
 
-        Add-CIPPDbItem -TenantFilter $TenantFilter -Type 'IntuneReusableSettings' -Data @($Settings)
-        Add-CIPPDbItem -TenantFilter $TenantFilter -Type 'IntuneReusableSettings' -Data @($Settings) -Count
+        Add-CIPPDbItem -TenantFilter $TenantFilter -Type 'IntuneReusableSettings' -Data @($Settings) -AddCount
 
         Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "Cached $(($Settings | Measure-Object).Count) reusable settings" -sev Debug
     } catch {

@@ -7,7 +7,7 @@ function Set-CIPPDBCacheIntuneCompliancePolicies {
     )
 
     try {
-        $TestResult = Test-CIPPStandardLicense -StandardName 'IntuneCompliancePoliciesCache' -TenantFilter $TenantFilter -RequiredCapabilities @('INTUNE_A', 'MDM_Services', 'EMS', 'SCCM', 'MICROSOFTINTUNEPLAN1') -SkipLog
+        $TestResult = Test-CIPPStandardLicense -StandardName 'IntuneCompliancePoliciesCache' -TenantFilter $TenantFilter -Preset Intune -SkipLog
         if ($TestResult -eq $false) {
             Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message 'Tenant does not have Intune license, skipping compliance policies cache' -sev Debug
             return
@@ -34,10 +34,8 @@ function Set-CIPPDBCacheIntuneCompliancePolicies {
         if (-not $Groups) { $Groups = @() }
         if (-not $Policies) { $Policies = @() }
 
-        Add-CIPPDbItem -TenantFilter $TenantFilter -Type 'IntuneCompliancePolicyGroups' -Data @($Groups)
-        Add-CIPPDbItem -TenantFilter $TenantFilter -Type 'IntuneCompliancePolicyGroups' -Data @($Groups) -Count
-        Add-CIPPDbItem -TenantFilter $TenantFilter -Type 'IntuneDeviceCompliancePolicies' -Data @($Policies)
-        Add-CIPPDbItem -TenantFilter $TenantFilter -Type 'IntuneDeviceCompliancePolicies' -Data @($Policies) -Count
+        Add-CIPPDbItem -TenantFilter $TenantFilter -Type 'IntuneCompliancePolicyGroups' -Data @($Groups) -AddCount
+        Add-CIPPDbItem -TenantFilter $TenantFilter -Type 'IntuneDeviceCompliancePolicies' -Data @($Policies) -AddCount
 
         Write-LogMessage -API 'CIPPDBCache' -tenant $TenantFilter -message "Cached $(($Policies | Measure-Object).Count) compliance policies" -sev Debug
     } catch {
